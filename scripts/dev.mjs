@@ -252,7 +252,7 @@ async function main() {
     const cameraScript = IS_RASPBERRY_PI ? 'camera/stream_server.py' : 'camera/camera_server.py'
     start('camara', cameraPython, [cameraScript], {
       ...commonPython,
-      RECYBOT_CAMERA_BACKEND: process.env.RECYBOT_CAMERA_BACKEND || 'opencv',
+      RECYBOT_CAMERA_BACKEND: process.env.RECYBOT_CAMERA_BACKEND || (IS_RASPBERRY_PI ? 'picamera2' : 'opencv'),
       RECYBOT_CAMERA_INDEX: process.env.RECYBOT_CAMERA_INDEX || '0',
       RECYBOT_CAMERA_FLIP_HORIZONTAL: process.env.RECYBOT_CAMERA_FLIP_HORIZONTAL || 'false',
     })
