@@ -2,11 +2,11 @@
 
 Interfaz táctil para un basurero inteligente, construida con Svelte 5, TypeScript y Vite.
 
-**Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 identifica objetos con YOLOv8n. El modelo general no determina el material: la persona debe elegir Plástico, Papel / Cartón, Metal o Vidrio. No se accionan motores ni compuertas.
+**Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 identifica objetos con YOLOv8n. El modelo general no determina el material: la persona debe elegir Plástico, Vidrio, Metal o Papel / Cartón. Cuando confirma, la captura queda en una cola local para revisar y usar en un entrenamiento posterior. No se accionan motores ni compuertas.
 
-## Usar desde otra PC
+## Arranque local completo
 
-La nueva PC ejecuta la interfaz; la cámara y la inferencia siguen en las Raspberry existentes. Ambas deben estar encendidas y la PC debe poder acceder al puente web de la Pi 3 por la LAN o una red privada con ruta hacia ella. Clonar no instala servicios ni cambia las Raspberry.
+La PC ejecuta la interfaz, el puente y la inferencia como un único sistema supervisado. La cámara pertenece al navegador del dispositivo que abre la página; el video en vivo no consume créditos y cada toque envía una sola fotografía.
 
 Versiones de referencia: **Node.js 24.12.0** (registrada en `.node-version`) y **pnpm 10.21.0** (registrada en `package.json`). Instala esas versiones y comprueba `node --version` y `pnpm --version`. Si falta pnpm, después de instalar Node ejecuta `npm install --global pnpm@10.21.0`.
 
@@ -16,31 +16,17 @@ cd recybot
 pnpm install --frozen-lockfile
 ```
 
-Copia `.env.example` a `.env.local`:
+También hace falta Python 3.12. No es necesario crear el entorno virtual manualmente: el primer arranque crea `.venv`, instala las dependencias de `ai/requirements-local.txt` y genera el token privado entre los servicios. Si todavía no existe `ai/config/roboflow-api-key`, solicita la Private API Key una sola vez, la oculta mientras escribes y la guarda fuera de Git.
 
-```powershell
-# PowerShell
-Copy-Item .env.example .env.local
-```
-
-```sh
-# Linux / macOS
-cp .env.example .env.local
-```
-
-Ajusta la dirección si la Pi 3 cambia de IP:
-
-```dotenv
-RECYBOT_BRIDGE_URL=http://10.199.232.50:8080
-```
-
-Inicia la interfaz y abre la dirección que indique Vite:
+Inicia todo con un solo comando:
 
 ```sh
 pnpm dev
 ```
 
-Normalmente será `http://localhost:5173`. Reinicia Vite después de cambiar `.env.local`. La configuración también sirve para la vista previa:
+Cuando aparezca `Sistema listo`, abre `http://localhost:5173`. Para detener cámara, IA, puente, Vite y todos sus subprocesos, presiona `Ctrl+C` o `Q` en esa misma terminal. El supervisor captura la orden directamente, incluso en Windows, y devuelve el control sin pedir otra confirmación. Si un servicio falla, apaga los demás para no dejar procesos huérfanos.
+
+La configuración también permite comprobar la interfaz por separado:
 
 ```sh
 pnpm check
@@ -50,15 +36,38 @@ pnpm preview
 
 La vista previa normalmente usa `http://localhost:4173`. El proxy pertenece al servidor de Vite: publicar solamente `dist/` en otro servidor exige configurar allí el reenvío de `/api` hacia la Pi 3. `pnpm preview` es una comprobación local del build.
 
+## Probar todo en la PC
+
+La PC usa por defecto la cámara del navegador. Para probar específicamente el adaptador OpenCV y el stream MJPEG del servidor, utiliza:
+
+```sh
+pnpm run dev:server-camera
+```
+
+Este modo también queda bajo el mismo supervisor y se apaga completamente con `Ctrl+C`.
+
+`ai/config/api-token` contiene el token interno generado automáticamente y
+`ai/config/roboflow-api-key` la clave privada de Roboflow. También puedes proporcionar
+esta última mediante `ROBOFLOW_API_KEY`. Ambos archivos están fuera de Git y nunca se
+suben a GitHub.
+El video MJPEG permanece local y no consume créditos: solo un toque con la cámara
+activa obtiene un JPEG y llama a `/api/identificar`. Después de una respuesta correcta
+no se permite repetir dentro de esa clasificación; ante un error, un nuevo toque manual
+realiza como máximo otra consulta.
+
+`RECYBOT_CAMERA_FLIP_HORIZONTAL=true` corrige una cámara que entrega texto e imágenes
+en espejo. La corrección se aplica antes del stream y de la captura, de modo que Roboflow
+y el dataset reciben exactamente la misma orientación que ve el usuario.
+
 ## Recorrido de las solicitudes
 
 ```text
-Navegador → Vite en la PC → puente web en Pi 3:8080
-                              ├─ cámara local:8765
-                              └─ IA en Pi 5:8766
+Navegador → Vite → puente:8080
+                    ├─ cámara configurable:8765 (OpenCV o Picamera2)
+                    └─ IA configurable:8766 (PC o Pi 5)
 ```
 
-Desarrollo y vista previa reenvían `/api` sin cambiar sus rutas. El navegador pide `/api/camara/stream` para el video y envía `POST /api/identificar` con `X-Recybot-Capture: 1` para analizar una captura. La Pi 3 agrega la credencial al comunicarse con la Pi 5; la PC no necesita el token, Python, CUDA ni los pesos del modelo.
+Desarrollo y vista previa reenvían `/api` sin cambiar sus rutas. Por defecto (`VITE_CAMERA_SOURCE=device`), cada navegador solicita la cámara conectada al mismo dispositivo donde está abierto y envía directamente un único JPEG a `POST /api/identificar`; nunca elige la cámara de otra computadora por el tamaño de la pantalla. En navegadores sin video directo, el recuadro abre el selector de cámara o fotografía del propio dispositivo. El modo `VITE_CAMERA_SOURCE=server` queda reservado para una instalación donde la interfaz y el adaptador `Picamera2` se ejecutan juntos en Recybot. No hay reintentos automáticos. La respuesta contiene un `muestra_id` temporal. Al confirmar el material, el navegador envía `POST /api/muestras/confirmar`; recién entonces la IA conserva la imagen y su etiqueta. La Pi 3 agrega la credencial al comunicarse con la Pi 5; la PC no necesita el token, Python, CUDA ni los pesos del modelo para usar la interfaz.
 
 `RECYBOT_BRIDGE_URL` se lee exclusivamente en la configuración de Vite. No es una variable `VITE_*` ni se incluye como credencial en el frontend. Para esta instalación no configures `VITE_CAMERA_STREAM_URL`: deja que el video use la ruta relativa y el mismo proxy que la identificación.
 
@@ -67,8 +76,35 @@ Desarrollo y vista previa reenvían `/api` sin cambiar sus rutas. El navegador p
 1. Abre la interfaz y pulsa «Toca la pantalla para comenzar»; debe aparecer el video.
 2. Toca el video o enfoca el botón de captura y presiona Enter/Espacio. Debe mostrarse el análisis y luego los objetos detectados.
 3. Pulsa «Elegir material». «Confirmar selección» permanece desactivado hasta elegir una categoría.
-4. Confirma y verifica el mensaje que indica que el mecanismo todavía no está conectado.
-5. Si no se detecta un objeto, acerca uno a la cámara y vuelve a intentar. Si falla la cámara o la IA, la interfaz muestra el error correspondiente.
+4. Confirma y verifica el mensaje que indica si la muestra quedó lista o necesita revisar su caja.
+5. Si no se detecta un objeto, igualmente puedes indicar el material; la captura quedará separada para dibujar su caja antes de entrenar. Si falla la cámara o la IA, la interfaz muestra el error correspondiente.
+
+## Aprendizaje activo
+
+Las confirmaciones se guardan fuera de Git en `ai/datos_aprendizaje/inbox/`. Cada imagen tiene un JSON con la clase confirmada, las detecciones originales y la mejor caja propuesta. Una captura sin caja nunca entra automáticamente al entrenamiento: queda marcada con `requiere_revisar_caja: true`.
+
+Las cuatro clases de entrenamiento son `botella_plastico`, `botella_vidrio`, `lata` y `papel_carton`. Las predicciones públicas `paper` y `cardboard` se combinan en la misma categoría y el mismo destino físico.
+
+Roboflow está integrado como apoyo temporal. Puede detectar con el modelo público
+`ee4016/3`, comparar sus resultados con el modelo local y recibir por lotes las muestras
+confirmadas. La clave se guarda en `ai/config/roboflow-api-key`, fuera de Git. Las
+anotaciones subidas siguen requiriendo revisión humana; Roboflow no se usa para que el
+sistema se entrene solo ni para accionar compartimentos. Consulta los comandos y las
+variables en [la guía del servicio de IA](ai/README.md).
+
+En la máquina con GPU, instala PyTorch, Ultralytics y PyYAML en un entorno aislado. Descarga un dataset público YOLO y ejecuta el entrenador por lotes:
+
+```powershell
+python training/train_if_ready.py `
+  --public-data C:\datasets\residuos\data.yaml `
+  --learning-dir C:\datos-recybot `
+  --workspace C:\entrenamiento-recybot `
+  --base-model yolov8n.pt `
+  --current-model C:\modelos\best.pt `
+  --deploy-path C:\modelos\best.pt
+```
+
+Por defecto espera al menos 100 muestras confirmadas con caja y no repite un conjunto ya procesado. Crea una combinación nueva del dataset público y las imágenes locales, entrena hasta 100 épocas con parada temprana y evalúa sobre la partición de prueba. Solo promueve el candidato si alcanza `mAP50-95 >= 0.35` o mejora al modelo anterior por al menos `0.005`; antes de reemplazarlo conserva un respaldo. Programar este comando con el Programador de tareas o `cron` automatiza el ciclo. La sincronización de las muestras desde la Pi hacia la computadora de entrenamiento debe hacerse por una ruta privada; no se incluye subida a Internet.
 
 ## Diagnóstico
 
@@ -85,9 +121,10 @@ Vite escucha en todas las interfaces para pruebas en la LAN. Usa esta configurac
 
 - `src/`: interfaz y recursos visuales versionados.
 - `camera/`: cámara, puente web y servicios actuales de Pi 3.
-- `ai/`: servidor de inferencia, servicio y prueba HTTP para Pi 5. Consulta [la integración actual](ai/README.md).
+- `ai/`: servidor de inferencia, cola de aprendizaje activo y pruebas para Pi 5. Consulta [la integración actual](ai/README.md).
+- `training/`: preparación reproducible del dataset y entrenamiento con promoción condicionada por métricas.
 - `.env.example`, `.node-version`, `package.json` y `pnpm-lock.yaml`: configuración y dependencias para la nueva PC.
 
-`output/`, `tmp/`, entornos Python, pesos, datos de entrenamiento y credenciales quedan fuera de Git. No hacen falta para desarrollar desde otra PC usando las Raspberry actuales. Los experimentos locales de entrenamiento no forman parte de esta entrega.
+`output/`, `tmp/`, entornos Python, pesos, datos de entrenamiento y credenciales quedan fuera de Git. No hacen falta para desarrollar desde otra PC usando las Raspberry actuales.
 
-`pnpm check` verifica Svelte/TypeScript y `pnpm build` genera la aplicación. No hay un comando `pnpm test`. La prueba `ai/test_api.py` requiere el entorno y token de la Pi 5; no es una dependencia de instalación de la PC. Reinstalar las Raspberry desde cero o reproducir entrenamiento son tareas separadas.
+`pnpm check` verifica Svelte/TypeScript y `pnpm build` genera la aplicación. No hay un comando `pnpm test`. `python ai/test_learning.py` y `python training/test_build_dataset.py` prueban el flujo de datos sin cargar YOLO. La prueba `ai/test_api.py` requiere el entorno, modelo y token del servicio de IA.
