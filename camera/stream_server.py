@@ -8,9 +8,7 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from picamera2 import Picamera2
-from picamera2.encoders import MJPEGEncoder
-from picamera2.outputs import FileOutput
+from camera_server import main as unified_main
 
 
 class SalidaDeVideo(io.BufferedIOBase):
@@ -106,6 +104,10 @@ class ManejadorCamara(BaseHTTPRequestHandler):
 
 
 def main():
+    from picamera2 import Picamera2
+    from picamera2.encoders import MJPEGEncoder
+    from picamera2.outputs import FileOutput
+
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     camara = Picamera2()
     configuracion = camara.create_video_configuration(
@@ -131,4 +133,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    unified_main()

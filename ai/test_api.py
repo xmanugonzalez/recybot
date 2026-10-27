@@ -32,4 +32,5 @@ result = send(picture.getvalue(), 200)
 assert result['categoria'] is None
 assert result['requiere_confirmacion_material'] is True
 assert result['detecciones'] == []
-print('OK: autenticación, JPEG inválido, captura vacía e inferencia sin falsas categorías.')
+assert isinstance(result['muestra_id'], str)
+print('OK: autenticación, JPEG inválido, captura vacía, muestra temporal e inferencia sin falsas categorías.')
