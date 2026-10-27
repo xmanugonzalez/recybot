@@ -8,13 +8,15 @@ import process from 'node:process'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const IS_WINDOWS = process.platform === 'win32'
-const SERVER_CAMERA = process.argv.includes('--server-camera')
+const IS_RASPBERRY_PI = process.platform === 'linux' && (process.arch === 'arm' || process.arch === 'arm64')
+const SERVER_CAMERA = process.argv.includes('--server-camera') || IS_RASPBERRY_PI
 const VENV_PYTHON = resolve(
   ROOT,
   '.venv',
   IS_WINDOWS ? 'Scripts/python.exe' : 'bin/python',
 )
 const REQUIREMENTS = resolve(ROOT, 'ai/requirements-local.txt')
+const CAMERA_REQUIREMENTS = resolve(ROOT, 'ai/requirements-camera.txt')
 const REQUIREMENTS_MARKER = resolve(ROOT, '.venv/.recybot-requirements.sha256')
 const TOKEN_PATH = resolve(ROOT, 'ai/config/api-token')
 const ROBOFLOW_KEY_PATH = resolve(ROOT, 'ai/config/roboflow-api-key')
@@ -56,14 +58,18 @@ async function ensurePython() {
     run(python.command, [...python.args, '-m', 'venv', '.venv'])
   }
 
-  const requirements = await readFile(REQUIREMENTS)
+  const requirementFiles = [REQUIREMENTS]
+  if (SERVER_CAMERA && !IS_RASPBERRY_PI) requirementFiles.push(CAMERA_REQUIREMENTS)
+  const requirements = Buffer.concat(await Promise.all(requirementFiles.map((file) => readFile(file))))
   const fingerprint = createHash('sha256').update(requirements).digest('hex')
   const installed = existsSync(REQUIREMENTS_MARKER)
     ? (await readFile(REQUIREMENTS_MARKER, 'utf8')).trim()
     : ''
   if (installed !== fingerprint) {
     console.log('[config] Instalando dependencias Python locales…')
-    run(VENV_PYTHON, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', REQUIREMENTS])
+    for (const requirementsFile of requirementFiles) {
+      run(VENV_PYTHON, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', requirementsFile])
+    }
     await writeFile(REQUIREMENTS_MARKER, `${fingerprint}\n`)
   }
 }
@@ -242,7 +248,9 @@ async function main() {
     PYTHONUNBUFFERED: '1',
   }
   if (SERVER_CAMERA) {
-    start('camara', VENV_PYTHON, ['camera/camera_server.py'], {
+    const cameraPython = IS_RASPBERRY_PI ? '/usr/bin/python3' : VENV_PYTHON
+    const cameraScript = IS_RASPBERRY_PI ? 'camera/stream_server.py' : 'camera/camera_server.py'
+    start('camara', cameraPython, [cameraScript], {
       ...commonPython,
       RECYBOT_CAMERA_BACKEND: process.env.RECYBOT_CAMERA_BACKEND || 'opencv',
       RECYBOT_CAMERA_INDEX: process.env.RECYBOT_CAMERA_INDEX || '0',

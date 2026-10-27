@@ -46,13 +46,21 @@ python3 --version    # Python 3.12.x en Linux/macOS
 ```
 
 No necesitas crear `.venv` ni instalar manualmente las dependencias Python: `pnpm dev`
-crea el entorno virtual e instala Pillow, PyYAML, OpenCV y el cliente de Roboflow en el
-primer arranque. Si prefieres instalarlo manualmente:
+crea el entorno virtual e instala Pillow y PyYAML en el primer arranque. En Windows,
+`pnpm run dev:server-camera` instala además OpenCV. En la Pi 3 usa el Picamera2 del
+sistema y no instala OpenCV de Windows. Si prefieres instalar las dependencias locales
+manualmente:
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r ai\requirements-local.txt
+```
+
+Para añadir el adaptador OpenCV en Windows:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r ai\requirements-camera.txt
 ```
 
 En Linux/macOS:
