@@ -1,18 +1,14 @@
 # Recybot
 
-Interfaz táctil para un basurero inteligente que ayuda a separar residuos. El proyecto combina una experiencia visual de clasificación con una vista en directo de la cámara conectada a una Raspberry Pi.
+Interfaz táctil para un basurero inteligente, construida con Svelte 5, TypeScript y Vite.
 
-> **Estado actual:** la interfaz muestra un flujo de clasificación de demostración. La cámara OV5647 puede transmitir video desde la Raspberry Pi, pero la detección y clasificación con YOLO, el control de compartimentos y la integración con hardware todavía no están implementados.
+**Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 identifica objetos con YOLOv8n. El modelo general no determina el material: la persona debe elegir Plástico, Papel / Cartón, Metal o Vidrio. No se accionan motores ni compuertas.
 
-## Requisitos
+## Usar desde otra PC
 
-- Node.js y pnpm instalados en el equipo de desarrollo.
-- Raspberry Pi OS con soporte para `libcamera` y `Picamera2` para usar la cámara real.
-- Cámara compatible conectada a la Raspberry Pi. El servicio incluido está preparado para la OV5647.
+La nueva PC ejecuta la interfaz; la cámara y la inferencia siguen en las Raspberry existentes. Ambas deben estar encendidas y la PC debe poder acceder al puente web de la Pi 3 por la LAN o una red privada con ruta hacia ella. Clonar no instala servicios ni cambia las Raspberry.
 
-## Desarrollo local
-
-Clona el repositorio e instala las dependencias:
+Versiones de referencia: **Node.js 24.12.0** (registrada en `.node-version`) y **pnpm 10.21.0** (registrada en `package.json`). Instala esas versiones y comprueba `node --version` y `pnpm --version`. Si falta pnpm, después de instalar Node ejecuta `npm install --global pnpm@10.21.0`.
 
 ```sh
 git clone https://github.com/xmanugonzalez/recybot.git
@@ -20,63 +16,78 @@ cd recybot
 pnpm install --frozen-lockfile
 ```
 
-Inicia el servidor de desarrollo:
+Copia `.env.example` a `.env.local`:
+
+```powershell
+# PowerShell
+Copy-Item .env.example .env.local
+```
+
+```sh
+# Linux / macOS
+cp .env.example .env.local
+```
+
+Ajusta la dirección si la Pi 3 cambia de IP:
+
+```dotenv
+RECYBOT_BRIDGE_URL=http://10.199.232.50:8080
+```
+
+Inicia la interfaz y abre la dirección que indique Vite:
 
 ```sh
 pnpm dev
 ```
 
-Vite escucha en todas las interfaces de red para permitir abrir la interfaz desde otro dispositivo de la misma LAN. La vista de cámara utiliza `http://127.0.0.1:8765` por defecto. Como ese host apunta al propio dispositivo que abre la página, para ver la cámara real hay que abrir Recybot en Chromium en la Raspberry Pi donde corre el servicio.
-
-Si necesitas cambiar la dirección del flujo en desarrollo, crea `.env.local` en la raíz:
-
-```dotenv
-VITE_CAMERA_STREAM_URL=http://127.0.0.1:8765/api/camara/stream
-```
-
-Los archivos `.env` locales están excluidos de Git. No guardes contraseñas, tokens ni otros secretos en el repositorio.
-
-## Comprobaciones
+Normalmente será `http://localhost:5173`. Reinicia Vite después de cambiar `.env.local`. La configuración también sirve para la vista previa:
 
 ```sh
 pnpm check
 pnpm build
+pnpm preview
 ```
 
-El proyecto todavía no define un script `test`; por eso `pnpm test` no está disponible.
+La vista previa normalmente usa `http://localhost:4173`. El proxy pertenece al servidor de Vite: publicar solamente `dist/` en otro servidor exige configurar allí el reenvío de `/api` hacia la Pi 3. `pnpm preview` es una comprobación local del build.
 
-## Cámara en Raspberry Pi
-
-El servidor de `camera/stream_server.py` publica MJPEG en `127.0.0.1:8765` y el estado en `/api/camara/status`. Se mantiene enlazado a loopback para que el flujo no quede expuesto directamente a la red local.
-
-### Instalar el servicio
-
-Desde PowerShell o una terminal con SSH y SCP, sustituye `<USUARIO>` y `<IP>` por los datos de tu Raspberry Pi:
-
-```sh
-ssh <USUARIO>@<IP> "mkdir -p ~/recybot-camera ~/.config/systemd/user"
-scp camera/stream_server.py <USUARIO>@<IP>:~/recybot-camera/stream_server.py
-scp camera/recybot-camera.service <USUARIO>@<IP>:~/.config/systemd/user/recybot-camera.service
-ssh <USUARIO>@<IP> "systemctl --user daemon-reload && systemctl --user enable --now recybot-camera.service"
-```
-
-Instala antes `python3-picamera2` desde los paquetes de Raspberry Pi OS si aún no está disponible. La unidad usa `%h`, por lo que funciona con el directorio personal del usuario SSH y no requiere que la cuenta se llame `recybot`.
-
-Comprueba el servicio y sus registros:
-
-```sh
-ssh <USUARIO>@<IP> "systemctl --user status recybot-camera.service"
-ssh <USUARIO>@<IP> "journalctl --user -u recybot-camera.service -n 50 --no-pager"
-ssh <USUARIO>@<IP> "curl -sS http://127.0.0.1:8765/api/camara/status"
-```
-
-Abre el frontend en un navegador que se ejecute en esa Raspberry Pi. Otros dispositivos pueden abrir la interfaz web, pero el flujo configurado en loopback no mostrará la cámara en ellos.
-
-## Estructura
+## Recorrido de las solicitudes
 
 ```text
-camera/       Servicio MJPEG y unidad systemd de usuario
-src/          Aplicación Svelte y recursos visuales
+Navegador → Vite en la PC → puente web en Pi 3:8080
+                              ├─ cámara local:8765
+                              └─ IA en Pi 5:8766
 ```
 
-La aplicación está construida con Svelte 5, TypeScript estricto, Vite, Tailwind CSS v4 y componentes de iconos Tabler para Svelte.
+Desarrollo y vista previa reenvían `/api` sin cambiar sus rutas. El navegador pide `/api/camara/stream` para el video y envía `POST /api/identificar` con `X-Recybot-Capture: 1` para analizar una captura. La Pi 3 agrega la credencial al comunicarse con la Pi 5; la PC no necesita el token, Python, CUDA ni los pesos del modelo.
+
+`RECYBOT_BRIDGE_URL` se lee exclusivamente en la configuración de Vite. No es una variable `VITE_*` ni se incluye como credencial en el frontend. Para esta instalación no configures `VITE_CAMERA_STREAM_URL`: deja que el video use la ruta relativa y el mismo proxy que la identificación.
+
+## Comprobar el funcionamiento
+
+1. Abre la interfaz y pulsa «Toca la pantalla para comenzar»; debe aparecer el video.
+2. Toca el video o enfoca el botón de captura y presiona Enter/Espacio. Debe mostrarse el análisis y luego los objetos detectados.
+3. Pulsa «Elegir material». «Confirmar selección» permanece desactivado hasta elegir una categoría.
+4. Confirma y verifica el mensaje que indica que el mecanismo todavía no está conectado.
+5. Si no se detecta un objeto, acerca uno a la cámara y vuelve a intentar. Si falla la cámara o la IA, la interfaz muestra el error correspondiente.
+
+## Diagnóstico
+
+- **No hay video ni identificación:** comprueba la IP, la conexión de red y el puerto 8080 de la Pi 3. En PowerShell: `Test-NetConnection 10.199.232.50 -Port 8080`.
+- **Comprobar cámara a través del puente:** abre `http://10.199.232.50:8080/api/camara/status`. A través de desarrollo, abre `http://localhost:5173/api/camara/status` (ajusta el puerto si Vite eligió otro).
+- **El puente responde directamente pero Vite no:** revisa `.env.local`, reinicia Vite y elimina cualquier override antiguo de `VITE_CAMERA_STREAM_URL`.
+- **Hay video pero la Pi 5 no responde:** comprueba desde la red de las Raspberry `http://10.199.232.70:8766/api/salud`. El proxy de la PC debe apuntar a la Pi 3, no directamente a la Pi 5.
+- **Servicio detenido:** consulta por SSH `systemctl --user status recybot-camera recybot-web` en Pi 3 o `systemctl --user status recybot-ia` en Pi 5. Los registros se consultan con `journalctl --user -u NOMBRE -n 50 --no-pager`.
+- **No se puede acceder a la LAN desde la nueva PC:** la interfaz puede compilar, pero la cámara y la inferencia no estarán disponibles hasta tener conectividad.
+
+Vite escucha en todas las interfaces para pruebas en la LAN. Usa esta configuración en una red de confianza; no publiques sus puertos ni los de las Raspberry en Internet.
+
+## Archivos y alcance
+
+- `src/`: interfaz y recursos visuales versionados.
+- `camera/`: cámara, puente web y servicios actuales de Pi 3.
+- `ai/`: servidor de inferencia, servicio y prueba HTTP para Pi 5. Consulta [la integración actual](ai/README.md).
+- `.env.example`, `.node-version`, `package.json` y `pnpm-lock.yaml`: configuración y dependencias para la nueva PC.
+
+`output/`, `tmp/`, entornos Python, pesos, datos de entrenamiento y credenciales quedan fuera de Git. No hacen falta para desarrollar desde otra PC usando las Raspberry actuales. Los experimentos locales de entrenamiento no forman parte de esta entrega.
+
+`pnpm check` verifica Svelte/TypeScript y `pnpm build` genera la aplicación. No hay un comando `pnpm test`. La prueba `ai/test_api.py` requiere el entorno y token de la Pi 5; no es una dependencia de instalación de la PC. Reinstalar las Raspberry desde cero o reproducir entrenamiento son tareas separadas.
