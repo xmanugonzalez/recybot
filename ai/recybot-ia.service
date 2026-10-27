@@ -1,0 +1,14 @@
+[Unit]
+Description=Recybot YOLOv8n CPU inference on Pi 5
+After=network.target
+
+[Service]
+WorkingDirectory=%h/recybot-ia
+ExecStart=%h/recybot-ia/.venv/bin/python -u %h/recybot-ia/server.py
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

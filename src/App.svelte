@@ -6,7 +6,7 @@
   import IconChevronLeft from '@tabler/icons-svelte-runes/icons/chevron-left'
   import IconHandClick from '@tabler/icons-svelte-runes/icons/hand-click'
   import robotCamara from './assets/robot-camara.png'
-  import robotEncontrado from './assets/robot-encontrado.PNG'
+  import robotEncontrado from './assets/robot-encontrado.png'
   import robotOk from './assets/robot-ok.png'
   import logoRecybot from './assets/logo-recybot.png'
   import robotSaludo from './assets/robot-saludo.PNG'
@@ -20,7 +20,7 @@
   type EstadoCamara = 'conectando' | 'activa' | 'error'
 
   const cameraStreamUrl =
-    import.meta.env.VITE_CAMERA_STREAM_URL ?? 'http://127.0.0.1:8765/api/camara/stream'
+    import.meta.env.VITE_CAMERA_STREAM_URL ?? '/api/camara/stream'
 
   const categorias: { nombre: CategoriaResiduo; imagen: string; alt: string }[] = [
     { nombre: 'Plástico', imagen: botella, alt: 'Botella de plástico' },
@@ -30,7 +30,11 @@
   ]
 
   let pantallaActual = $state<Pantalla>('bienvenida')
-  let categoriaSeleccionada = $state<CategoriaResiduo>('Plástico')
+  let categoriaSeleccionada = $state<CategoriaResiduo | null>(null)
+  let analizando = $state(false)
+  let errorIA = $state('')
+  let resumenIA = $state('')
+  let solicitudIA: AbortController | undefined
   let estadoCamara = $state<EstadoCamara>('conectando')
   let errorCamara = $state('')
   let intentoCamara = $state(0)
@@ -40,6 +44,9 @@
   )
 
   function comenzarDeteccion() {
+    errorIA = ''
+    resumenIA = ''
+    categoriaSeleccionada = null
     pantallaActual = 'deteccion'
     conectarCamara()
   }
@@ -81,21 +88,61 @@
   }
 
   function confirmarCategoria() {
+    if (!categoriaSeleccionada) return
     detenerCamara()
     pantallaActual = 'exito'
   }
 
-  function volverAIdentificacion() {
+  function mostrarIdentificacion() {
     detenerCamara()
     pantallaActual = 'identificada'
   }
 
+  async function identificarResiduo() {
+    if (analizando) return
+    analizando = true
+    errorIA = ''
+    solicitudIA = new AbortController()
+    const timeout = setTimeout(() => solicitudIA?.abort(), 55000)
+    try {
+      const response = await fetch('/api/identificar', {
+        method: 'POST',
+        headers: { 'X-Recybot-Capture': '1' },
+        signal: solicitudIA.signal,
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'No se pudo analizar la imagen.')
+      const nombres: Record<string, string> = {
+        bottle: 'botella', person: 'persona', cup: 'taza o vaso',
+        banana: 'banana', apple: 'manzana', book: 'libro', cell_phone: 'teléfono',
+      }
+      const detecciones = data.detecciones as { clase: string; confianza: number }[]
+      if (!Array.isArray(detecciones)) throw new Error('Respuesta de IA inválida.')
+      if (detecciones.length === 0) {
+        errorIA = 'No se detectó un objeto. Acercalo al centro, mejorá la iluminación y tocá el video para reintentar.'
+        return
+      }
+      resumenIA = detecciones.slice(0, 4).map((d) =>
+        `${nombres[d.clase] ?? d.clase} (${Math.round(d.confianza * 100)} %)`
+      ).join(', ')
+      categoriaSeleccionada = null
+      mostrarIdentificacion()
+    } catch (error) {
+      errorIA = error instanceof Error && error.name !== 'AbortError'
+        ? error.message : 'La identificación tardó demasiado. Volvé a intentar.'
+    } finally {
+      clearTimeout(timeout)
+      solicitudIA = undefined
+      analizando = false
+    }
+  }
+
   function iniciarOtraClasificacion() {
-    categoriaSeleccionada = 'Plástico'
+    categoriaSeleccionada = null
     void comenzarDeteccion()
   }
 
-  onDestroy(detenerCamara)
+  onDestroy(() => { detenerCamara(); solicitudIA?.abort() })
 </script>
 
 <svelte:head>
@@ -142,8 +189,7 @@
         </div>
 
         <p class="descripcion">
-          Mi inteligencia artificial identificará el material y abrirá automáticamente el
-          compartimento correcto.
+          Reconozco objetos con la cámara. Confirmá el material para completar esta prueba.
         </p>
 
         <p class="indicacion-inicio" aria-hidden="true">
@@ -174,7 +220,10 @@
           <span>de detección</span>
         </h1>
 
-        <p class="descripcion-deteccion">RecyBOT AI lo identificará automáticamente.</p>
+        <p class="descripcion-deteccion" aria-live="polite">
+          {analizando ? 'Analizando la captura en la Pi 5…' : 'Tocá el video para identificar el objeto.'}
+        </p>
+        {#if errorIA}<p role="alert">{errorIA}</p>{/if}
 
         <img
           class="robot-camara"
@@ -219,6 +268,13 @@
                 <span>Conectando con la cámara…</span>
               </div>
             {/if}
+            <button
+              class="boton-continuar-camara"
+              type="button"
+              aria-label="Capturar imagen y analizar en la Pi 5"
+              disabled={analizando}
+              onclick={identificarResiduo}
+            ></button>
           {/if}
           <div class="marco-deteccion">
             <span class="esquina-deteccion esquina-superior-izquierda"></span>
@@ -251,23 +307,23 @@
     <img class="logo-flujo" src={logoRecybot} alt="RecyBOT AI" />
 
     <section class="contenido-identificada" aria-labelledby="titulo-identificada">
-      <h1 id="titulo-identificada">¡Residuo <span>identificado!</span></h1>
+      <h1 id="titulo-identificada">Resultado de <span>la cámara</span></h1>
 
       <div class="mensaje-identificada">
-        <img src={imagenResiduoSeleccionado} alt="" />
-        <p>He detectado que tu residuo<br />es de tipo <strong>{categoriaSeleccionada.toUpperCase()}.</strong></p>
+        <IconCamera size={48} aria-hidden="true" />
+        <p>La Pi 5 detectó:<br /><strong>{resumenIA}</strong></p>
       </div>
 
-      <p class="pregunta-identificacion">¿Es correcta la identificación?</p>
+      <p class="pregunta-identificacion">YOLOv8n reconoce objetos, pero no confirma su material.</p>
 
       <div class="acciones-identificacion">
-        <button class="boton-primario" type="button" onclick={confirmarCategoria}>
+        <button class="boton-primario" type="button" onclick={corregirResiduo}>
           <IconCheck size={25} stroke={3} aria-hidden="true" />
-          <span>Sí, es correcto</span>
+          <span>Elegir material</span>
         </button>
-        <button class="boton-secundario" type="button" onclick={corregirResiduo}>
+        <button class="boton-secundario" type="button" onclick={comenzarDeteccion}>
           <IconPencil size={25} stroke={2.4} aria-hidden="true" />
-          <span>No, corregir</span>
+          <span>Repetir captura</span>
         </button>
       </div>
     </section>
@@ -278,7 +334,7 @@
 {:else if pantallaActual === 'categorias'}
   <main class="pantalla-flujo pantalla-categorias">
     <img class="logo-flujo" src={logoRecybot} alt="RecyBOT AI" />
-    <button class="boton-volver" type="button" onclick={volverAIdentificacion}>
+    <button class="boton-volver" type="button" onclick={mostrarIdentificacion}>
       <IconChevronLeft size={23} stroke={2.6} aria-hidden="true" />
       <span>Volver</span>
     </button>
@@ -302,7 +358,7 @@
         {/each}
       </div>
 
-      <button class="boton-primario boton-confirmar-categoria" type="button" onclick={confirmarCategoria}>
+      <button class="boton-primario boton-confirmar-categoria" type="button" disabled={!categoriaSeleccionada} onclick={confirmarCategoria}>
         <IconCheck size={25} stroke={3} aria-hidden="true" />
         <span>Confirmar selección</span>
       </button>
@@ -316,9 +372,9 @@
       <h1 id="titulo-exito">¡Perfecto!</h1>
       <div class="mensaje-exito">
         <img src={imagenResiduoSeleccionado} alt="" />
-        <p>Residuo de tipo<br /><strong>{categoriaSeleccionada.toUpperCase()}</strong> confirmado.</p>
+        <p>Residuo de tipo<br /><strong>{categoriaSeleccionada?.toUpperCase()}</strong> confirmado por vos.</p>
       </div>
-      <p class="descripcion-exito">Ahora abriré automáticamente<br />el compartimento correspondiente.</p>
+      <p class="descripcion-exito">Prueba completada.<br />El mecanismo todavía no está conectado.</p>
     </section>
 
     <img class="robot-exito" src={robotOk} alt="RecyBOT AI confirma la clasificación" />

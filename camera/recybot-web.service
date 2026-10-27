@@ -1,0 +1,12 @@
+[Unit]
+Description=Recybot UI and camera-to-AI bridge on Pi 3
+After=network.target recybot-camera.service
+
+[Service]
+ExecStart=/usr/bin/python3 -u %h/recybot-camera/web_bridge.py
+Environment=RECYBOT_AI_URL=http://10.199.232.70:8766
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
