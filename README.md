@@ -4,6 +4,102 @@ Interfaz táctil para un basurero inteligente, construida con Svelte 5, TypeScri
 
 **Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 identifica objetos con YOLOv8n. El modelo general no determina el material: la persona debe elegir Plástico, Vidrio, Metal o Papel / Cartón. Cuando confirma, la captura queda en una cola local para revisar y usar en un entrenamiento posterior. No se accionan motores ni compuertas.
 
+## Instalación desde cero
+
+Requisitos:
+
+- Git
+- Node.js 24.12.0
+- pnpm 10.21.0
+- Python 3.12
+- Una Private API Key de Roboflow si vas a usar el backend `roboflow`
+
+En Windows, instala pnpm después de Node.js si todavía no está disponible:
+
+```powershell
+npm install --global pnpm@10.21.0
+```
+
+Clona el repositorio e instala las dependencias JavaScript:
+
+```powershell
+git clone https://github.com/xmanugonzalez/recybot.git
+cd recybot
+pnpm install --frozen-lockfile
+```
+
+En Linux o macOS los mismos comandos funcionan desde una terminal Bash:
+
+```bash
+git clone https://github.com/xmanugonzalez/recybot.git
+cd recybot
+pnpm install --frozen-lockfile
+```
+
+Comprueba las versiones instaladas:
+
+```text
+node --version       # v24.12.0
+pnpm --version       # 10.21.0
+python --version     # Python 3.12.x en Windows
+python3 --version    # Python 3.12.x en Linux/macOS
+```
+
+No necesitas crear `.venv` ni instalar manualmente las dependencias Python: `pnpm dev`
+crea el entorno virtual e instala Pillow, PyYAML, OpenCV y el cliente de Roboflow en el
+primer arranque. Si prefieres instalarlo manualmente:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r ai\requirements-local.txt
+```
+
+En Linux/macOS:
+
+```bash
+python3.12 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r ai/requirements-local.txt
+```
+
+### Configurar la clave de Roboflow
+
+La clave privada nunca se incluye en Git. Puedes configurarla de cualquiera de estas
+formas:
+
+1. Ejecuta `pnpm dev`. Si falta la clave, el supervisor la solicitará de forma oculta
+   y la guardará en `ai/config/roboflow-api-key`.
+2. Créala manualmente en PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force ai\config | Out-Null
+Set-Content -Path ai\config\roboflow-api-key -Value 'rf_TU_PRIVATE_API_KEY' -NoNewline
+```
+
+3. O usa una variable de entorno únicamente para esa sesión:
+
+```powershell
+$env:ROBOFLOW_API_KEY='rf_TU_PRIVATE_API_KEY'
+pnpm dev
+```
+
+En Linux/macOS:
+
+```bash
+mkdir -p ai/config
+printf '%s' 'rf_TU_PRIVATE_API_KEY' > ai/config/roboflow-api-key
+chmod 600 ai/config/roboflow-api-key
+```
+
+Reemplaza `rf_TU_PRIVATE_API_KEY` por la clave de Workspace Settings → API Keys de
+Roboflow. No la pegues en `README.md`, `.env.example`, el frontend ni ningún archivo
+que vayas a subir. La carpeta `ai/config/` está ignorada por Git.
+
+El token entre el puente y la IA se genera automáticamente en `ai/config/api-token`.
+No es la clave de Roboflow y tampoco debe subirse al repositorio.
+
 ## Arranque local completo
 
 La PC ejecuta la interfaz, el puente y la inferencia como un único sistema supervisado. La cámara pertenece al navegador del dispositivo que abre la página; el video en vivo no consume créditos y cada toque envía una sola fotografía.
