@@ -1,0 +1,16 @@
+[Unit]
+Description=Pantalla tactil del prototipo Recybot
+After=graphical-session.target recybot-web.service
+Wants=recybot-web.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/bin/chromium --ozone-platform=wayland --disable-gpu --password-store=basic --kiosk --no-first-run --no-default-browser-check --user-data-dir=%h/.config/chromium-recybot http://127.0.0.1:8080/
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

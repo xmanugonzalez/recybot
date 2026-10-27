@@ -4,6 +4,7 @@ After=network.target recybot-camera.service
 
 [Service]
 ExecStart=/usr/bin/python3 -u %h/recybot-camera/web_bridge.py
+Environment=RECYBOT_CAMERA_URL=http://127.0.0.1:8765
 Environment=RECYBOT_AI_URL=http://10.199.232.70:8766
 Restart=on-failure
 RestartSec=5

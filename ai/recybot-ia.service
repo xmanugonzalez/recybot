@@ -7,6 +7,8 @@ WorkingDirectory=%h/recybot-ia
 ExecStart=%h/recybot-ia/.venv/bin/python -u %h/recybot-ia/server.py
 Environment=OMP_NUM_THREADS=1
 Environment=OPENBLAS_NUM_THREADS=1
+Environment=RECYBOT_MODEL_MODE=prueba
+Environment=RECYBOT_COLLECT_SAMPLES=true
 Restart=on-failure
 RestartSec=10
 
