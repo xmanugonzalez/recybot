@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Recybot (inicio automático)
+Comment=Inicia Recybot al entrar al escritorio
+Exec=/home/smatipitouchpi3/recybot-start.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cerrar Recybot
+Comment=Cierra Chromium y detiene todos los servicios
+Exec=/home/smatipitouchpi3/recybot-stop.sh
+Icon=application-exit
+Terminal=false
+Categories=Utility;

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Iniciar Recybot
+Comment=Inicia cámara, IA, puente, frontend y Chromium
+Exec=/home/smatipitouchpi3/recybot-start.sh
+Icon=applications-system
+Terminal=false
+Categories=Utility;

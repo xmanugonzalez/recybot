@@ -72,6 +72,24 @@ python -m pip install --upgrade pip
 python -m pip install -r ai/requirements-local.txt
 ```
 
+### Inicio directo en Raspberry Pi
+
+En una Raspberry Pi configurada para el dispositivo, `~/recybot.sh` inicia Picamera2,
+IA, puente, Vite y Chromium en modo kiosco. También se instalan los accesos directos
+`Iniciar Recybot` y `Cerrar Recybot` en el escritorio, además del arranque automático
+en `~/.config/autostart/recybot.desktop`. La comunicación interna usa `127.0.0.1`;
+desde otro equipo se accede mediante la IP actual, por ejemplo
+`http://10.181.61.50:5173`.
+
+Para detenerlo manualmente:
+
+```sh
+~/recybot-stop.sh
+```
+
+Si el arranque se detiene en Picamera2, comprueba la conexión CSI y ejecuta
+`rpicam-hello --list-cameras` antes de volver a pulsar `Iniciar Recybot`.
+
 ### Configurar la clave de Roboflow
 
 La clave privada nunca se incluye en Git. Puedes configurarla de cualquiera de estas
