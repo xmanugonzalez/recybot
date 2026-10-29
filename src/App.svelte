@@ -350,9 +350,17 @@
   }
 
   function iniciarOtraClasificacion() {
+    detenerCamara()
+    limpiarFotoDispositivo()
+    errorIA = ''
+    resumenIA = ''
+    muestraId = null
+    errorConfirmacion = ''
+    muestraGuardada = false
+    requiereRevisarCaja = false
     categoriaDetectada = null
     categoriaSeleccionada = null
-    void comenzarDeteccion()
+    pantallaActual = 'bienvenida'
   }
 
   onDestroy(() => {
