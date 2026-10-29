@@ -2,7 +2,11 @@
 
 Interfaz táctil para un basurero inteligente, construida con Svelte 5, TypeScript y Vite.
 
-**Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 identifica objetos con YOLOv8n. El modelo general no determina el material: la persona debe elegir Plástico, Vidrio, Metal o Papel / Cartón. Cuando confirma, la captura queda en una cola local para revisar y usar en un entrenamiento posterior. No se accionan motores ni compuertas.
+**Estado actual:** al tocar el video, la Pi 3 captura una imagen nueva y la Pi 5 solicita
+la clasificación a OpenAI con `gpt-6-luna`. Si esa solicitud falla técnicamente, usa
+Roboflow una vez como respaldo. La persona siempre confirma Plástico, Papel / Cartón,
+Metal u Otros. La captura confirmada queda en una cola local para revisión y
+entrenamiento posterior. No se accionan motores ni compuertas.
 
 ## Instalación desde cero
 
@@ -12,7 +16,8 @@ Requisitos:
 - Node.js 24.12.0
 - pnpm 10.21.0
 - Python 3.12
-- Una Private API Key de Roboflow si vas a usar el backend `roboflow`
+- Una API key de OpenAI
+- Una Private API Key de Roboflow para el respaldo
 
 En Windows, instala pnpm después de Node.js si todavía no está disponible:
 
@@ -90,23 +95,25 @@ Para detenerlo manualmente:
 Si el arranque se detiene en Picamera2, comprueba la conexión CSI y ejecuta
 `rpicam-hello --list-cameras` antes de volver a pulsar `Iniciar Recybot`.
 
-### Configurar la clave de Roboflow
+### Configurar las claves de OpenAI y Roboflow
 
 La clave privada nunca se incluye en Git. Puedes configurarla de cualquiera de estas
 formas:
 
-1. Ejecuta `pnpm dev`. Si falta la clave, el supervisor la solicitará de forma oculta
-   y la guardará en `ai/config/roboflow-api-key`.
+1. Ejecuta `pnpm dev`. Si falta alguna clave, el supervisor la solicitará de forma
+   oculta y la guardará dentro de `ai/config/`.
 2. Créala manualmente en PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force ai\config | Out-Null
+Set-Content -Path ai\config\openai-api-key -Value 'sk-TU_OPENAI_API_KEY' -NoNewline
 Set-Content -Path ai\config\roboflow-api-key -Value 'rf_TU_PRIVATE_API_KEY' -NoNewline
 ```
 
 3. O usa una variable de entorno únicamente para esa sesión:
 
 ```powershell
+$env:OPENAI_API_KEY='sk-TU_OPENAI_API_KEY'
 $env:ROBOFLOW_API_KEY='rf_TU_PRIVATE_API_KEY'
 pnpm dev
 ```
@@ -115,16 +122,17 @@ En Linux/macOS:
 
 ```bash
 mkdir -p ai/config
+printf '%s' 'sk-TU_OPENAI_API_KEY' > ai/config/openai-api-key
 printf '%s' 'rf_TU_PRIVATE_API_KEY' > ai/config/roboflow-api-key
-chmod 600 ai/config/roboflow-api-key
+chmod 600 ai/config/openai-api-key ai/config/roboflow-api-key
 ```
 
-Reemplaza `rf_TU_PRIVATE_API_KEY` por la clave de Workspace Settings → API Keys de
-Roboflow. No la pegues en `README.md`, `.env.example`, el frontend ni ningún archivo
-que vayas a subir. La carpeta `ai/config/` está ignorada por Git.
+Reemplaza los valores de ejemplo por las claves correspondientes de OpenAI y Roboflow.
+No las pegues en `README.md`, `.env.example`, el frontend ni ningún archivo que vayas a
+subir. La carpeta `ai/config/` está ignorada por Git.
 
 El token entre el puente y la IA se genera automáticamente en `ai/config/api-token`.
-No es la clave de Roboflow y tampoco debe subirse al repositorio.
+No es ninguna de las claves externas y tampoco debe subirse al repositorio.
 
 ## Arranque local completo
 
@@ -138,7 +146,10 @@ cd recybot
 pnpm install --frozen-lockfile
 ```
 
-También hace falta Python 3.12. No es necesario crear el entorno virtual manualmente: el primer arranque crea `.venv`, instala las dependencias de `ai/requirements-local.txt` y genera el token privado entre los servicios. Si todavía no existe `ai/config/roboflow-api-key`, solicita la Private API Key una sola vez, la oculta mientras escribes y la guarda fuera de Git.
+También hace falta Python 3.12. No es necesario crear el entorno virtual manualmente:
+el primer arranque crea `.venv`, instala las dependencias de
+`ai/requirements-local.txt`, genera el token privado entre los servicios y solicita de
+forma oculta las claves de OpenAI y Roboflow que todavía no estén configuradas.
 
 Inicia todo con un solo comando:
 
@@ -169,17 +180,17 @@ pnpm run dev:server-camera
 Este modo también queda bajo el mismo supervisor y se apaga completamente con `Ctrl+C`.
 
 `ai/config/api-token` contiene el token interno generado automáticamente y
-`ai/config/roboflow-api-key` la clave privada de Roboflow. También puedes proporcionar
-esta última mediante `ROBOFLOW_API_KEY`. Ambos archivos están fuera de Git y nunca se
-suben a GitHub.
+`ai/config/openai-api-key` y `ai/config/roboflow-api-key` contienen las claves externas.
+También puedes proporcionarlas mediante `OPENAI_API_KEY` y `ROBOFLOW_API_KEY`. Todos
+estos archivos están fuera de Git y nunca se suben a GitHub.
 El video MJPEG permanece local y no consume créditos: solo un toque con la cámara
 activa obtiene un JPEG y llama a `/api/identificar`. Después de una respuesta correcta
 no se permite repetir dentro de esa clasificación; ante un error, un nuevo toque manual
 realiza como máximo otra consulta.
 
 `RECYBOT_CAMERA_FLIP_HORIZONTAL=true` corrige una cámara que entrega texto e imágenes
-en espejo. La corrección se aplica antes del stream y de la captura, de modo que Roboflow
-y el dataset reciben exactamente la misma orientación que ve el usuario.
+en espejo. La corrección se aplica antes del stream y de la captura, de modo que OpenAI,
+Roboflow y el dataset reciben exactamente la misma orientación que ve el usuario.
 
 ## Recorrido de las solicitudes
 
@@ -205,14 +216,18 @@ Desarrollo y vista previa reenvían `/api` sin cambiar sus rutas. Por defecto (`
 
 Las confirmaciones se guardan fuera de Git en `ai/datos_aprendizaje/inbox/`. Cada imagen tiene un JSON con la clase confirmada, las detecciones originales y la mejor caja propuesta. Una captura sin caja nunca entra automáticamente al entrenamiento: queda marcada con `requiere_revisar_caja: true`.
 
-Las cuatro clases de entrenamiento son `botella_plastico`, `botella_vidrio`, `lata` y `papel_carton`. Las predicciones públicas `paper` y `cardboard` se combinan en la misma categoría y el mismo destino físico.
+Las cuatro clases de entrenamiento son `plastico`, `papel_carton`, `metal` y `otros`.
+Vidrio, residuos orgánicos y cualquier material que no pertenezca a las tres categorías
+específicas se agrupan en `otros`. El ensamblador conserva alias para importar muestras
+antiguas sin perder sus etiquetas.
 
-Roboflow está integrado como apoyo temporal. Puede detectar con el modelo público
-`ee4016/3`, comparar sus resultados con el modelo local y recibir por lotes las muestras
-confirmadas. La clave se guarda en `ai/config/roboflow-api-key`, fuera de Git. Las
-anotaciones subidas siguen requiriendo revisión humana; Roboflow no se usa para que el
-sistema se entrene solo ni para accionar compartimentos. Consulta los comandos y las
-variables en [la guía del servicio de IA](ai/README.md).
+OpenAI con `gpt-6-luna` propone primero la categoría del material. Roboflow está
+integrado como respaldo temporal: puede detectar con el modelo público `ee4016/3`,
+comparar sus resultados con el modelo local y recibir por lotes las muestras confirmadas.
+Las claves se guardan dentro de `ai/config/`, fuera de Git. Las anotaciones subidas
+siguen requiriendo revisión humana; ningún proveedor se usa para que el sistema se
+entrene solo ni para accionar compartimentos. Consulta los comandos y las variables en
+[la guía del servicio de IA](ai/README.md).
 
 En la máquina con GPU, instala PyTorch, Ultralytics y PyYAML en un entorno aislado. Descarga un dataset público YOLO y ejecuta el entrenador por lotes:
 

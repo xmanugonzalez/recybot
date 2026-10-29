@@ -4,14 +4,16 @@ Instalada el 26/10/2026. Pi 3: `smatipitouchpi3@10.199.232.50`.
 Pi 5: `recybot@10.199.232.70`.
 
 La Pi 3 captura CSI y sirve la interfaz en http://10.199.232.50:8080.
-Tocar el video envía una captura JPEG nueva a YOLOv8n en la Pi 5.
-El procesamiento es real, bajo demanda, con un hilo CPU y una solicitud simultánea.
-No se ejecuta YOLO en Pi 3. No hay detección automática continua de presencia todavía.
+Tocar el video envía una captura JPEG nueva al servicio de IA en la Pi 5. El proveedor
+principal es OpenAI con `gpt-6-luna`; Roboflow actúa como respaldo ante una falla
+técnica. El procesamiento es real, bajo demanda y con una solicitud simultánea. No hay
+detección automática continua de presencia todavía.
 
-YOLOv8n COCO reconoce objetos, NO las cuatro clases de material. La API devuelve
-`categoria: null`; la interfaz pide selección humana. Una botella no determina plástico
-o vidrio. Hace falta entrenar y validar un modelo de residuos antes de automatizar
-la clasificación. No se controlan motores ni compuertas.
+La clasificación alojada propone una de las cuatro categorías, pero la interfaz siempre
+pide confirmación humana. Una botella no determina automáticamente plástico o vidrio si
+la fotografía no aporta evidencia suficiente. Hace falta entrenar y validar el modelo
+local de residuos antes de automatizar la clasificación. No se controlan motores ni
+compuertas.
 
 Cada inferencia crea un `muestra_id` temporal. La fotografía solo se conserva cuando
 la persona confirma una de las cuatro clases mediante `POST /api/muestras/confirmar`.
@@ -21,19 +23,39 @@ no entra al entrenamiento automático hasta corregirlo.
 
 Configuración del servicio:
 
-- `RECYBOT_INFERENCE_BACKEND=local|roboflow|comparar`: selecciona el proveedor de inferencia.
+- `RECYBOT_INFERENCE_BACKEND=openai|local|roboflow|comparar`: selecciona el proveedor de inferencia. `openai` usa Roboflow como respaldo ante una falla técnica.
 - `RECYBOT_MODEL_PATH`: ruta de `yolov8n.pt` o `best.pt`.
 - `RECYBOT_MODEL_MODE=prueba|recybot`: el modo de prueba nunca asigna destino.
 - `RECYBOT_CONFIDENCE`: umbral de detección; valor predeterminado `0.4`.
 - `RECYBOT_IMAGE_SIZE`: resolución de inferencia; valor predeterminado `320` para Pi.
 - `RECYBOT_COLLECT_SAMPLES=true|false`: habilita la cola de confirmaciones.
 - `RECYBOT_LEARNING_DIR`: carpeta privada para imágenes y metadatos.
+- `OPENAI_MODEL`: modelo de visión principal; valor predeterminado `gpt-6-luna`.
+- `OPENAI_API_KEY_PATH`: archivo local con la API key de OpenAI.
 - `ROBOFLOW_MODEL_ID`: modelo alojado que se consultará, por defecto `ee4016/3`.
 - `ROBOFLOW_API_KEY_PATH`: archivo local que contiene la clave privada de Roboflow.
 
 Al instalar pesos propios cambia simultáneamente `RECYBOT_MODEL_PATH` y
 `RECYBOT_MODEL_MODE=recybot`, recarga la unidad y reinicia el servicio. El mapa de
-clase a destino permanece en `learning.py`; papel y cartón forman una sola clase `papel_carton`.
+clase a destino permanece en `learning.py`: `plastico`, `papel_carton`, `metal` y
+`otros`. Vidrio, orgánicos y los demás materiales se agrupan en `otros`.
+
+## OpenAI principal y Roboflow de respaldo
+
+El modo predeterminado es `openai`: envía una fotografía por interacción a Responses API
+con detalle bajo y razonamiento desactivado. La respuesta está restringida a las cuatro
+clases de Recybot o `ninguno`. No se reintenta automáticamente. Si OpenAI falla por red,
+timeout, error HTTP o respuesta inválida, se consulta Roboflow una sola vez. Un resultado
+válido `ninguno` no activa el respaldo.
+
+Las claves pueden guardarse en `ai/config/openai-api-key` y
+`ai/config/roboflow-api-key`, o proporcionarse mediante `OPENAI_API_KEY` y
+`ROBOFLOW_API_KEY`. `pnpm dev` solicita de forma oculta cualquier clave que falte. Los
+archivos de `ai/config/` están ignorados por Git y las claves nunca llegan al navegador.
+
+OpenAI clasifica el material pero no genera una caja de entrenamiento confiable. Por
+eso sus detecciones quedan marcadas para revisión de caja antes de entrar al dataset.
+La confirmación humana sigue siendo obligatoria.
 
 ## Roboflow temporal
 
@@ -56,7 +78,7 @@ ignorada por Git. Comprueba la conexión con una fotografía real, sin imprimir 
 .\.venv\Scripts\python.exe ai\check_roboflow.py C:\ruta\residuo.jpg
 ```
 
-Para usar Roboflow en el servicio, define `RECYBOT_INFERENCE_BACKEND=roboflow`. El modo
+Para usar solamente Roboflow en el servicio, define `RECYBOT_INFERENCE_BACKEND=roboflow`. El modo
 `comparar` ejecuta el proveedor local y Roboflow sobre la misma captura, lo que permite
 medir la transición antes de eliminar la dependencia externa. `local` conserva el flujo
 sin conexión.

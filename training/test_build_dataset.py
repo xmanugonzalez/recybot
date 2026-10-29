@@ -11,10 +11,13 @@ from build_dataset import ALIASES, CLASSES, build, normalized
 
 
 class BuildDatasetTest(unittest.TestCase):
-    def test_merges_public_and_legacy_paper_classes(self):
+    def test_merges_public_and_legacy_classes(self):
         for name in ('paper', 'cardboard', 'papel', 'carton', 'papel_carton'):
             with self.subTest(name=name):
                 self.assertEqual(ALIASES[normalized(name)], 'papel_carton')
+        for name in ('glass', 'vidrio', 'botella_vidrio', 'organic'):
+            with self.subTest(name=name):
+                self.assertEqual(ALIASES[normalized(name)], 'otros')
 
     def test_combines_public_and_confirmed_samples(self):
         temporary_root = Path.cwd() / 'tmp'
@@ -45,7 +48,7 @@ class BuildDatasetTest(unittest.TestCase):
             (learning / 'images' / 'sample.jpg').write_bytes(b'local-image')
             (learning / 'metadata' / 'sample.json').write_text(json.dumps({
                 'id': 'sample',
-                'clase_confirmada': 'botella_vidrio',
+                'clase_confirmada': 'otros',
                 'ancho': 640,
                 'alto': 480,
                 'caja_xyxy': [64, 48, 320, 240],
@@ -60,7 +63,7 @@ class BuildDatasetTest(unittest.TestCase):
             self.assertEqual(list(generated['names'].values()), CLASSES)
             local_labels = list(output.glob('*/labels/local_*.txt'))
             self.assertEqual(len(local_labels), 1)
-            self.assertTrue(local_labels[0].read_text(encoding='utf-8').startswith('1 '))
+            self.assertTrue(local_labels[0].read_text(encoding='utf-8').startswith('3 '))
 
 
 if __name__ == '__main__':

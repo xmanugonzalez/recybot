@@ -16,9 +16,9 @@ from learning import CLASES_RECYBOT
 DEFAULT_API_URL = 'https://serverless.roboflow.com'
 DEFAULT_MODEL_ID = 'ee4016/3'
 CLASS_MAPPING = {
-    'plastic': 'botella_plastico',
-    'glass': 'botella_vidrio',
-    'metal': 'lata',
+    'plastic': 'plastico',
+    'glass': 'otros',
+    'metal': 'metal',
     'paper': 'papel_carton',
     'cardboard': 'papel_carton',
 }
@@ -66,7 +66,7 @@ class RoboflowProvider:
         detections = []
         for prediction in predictions:
             source_class = str(prediction.get('class', '')).lower().strip()
-            class_name = CLASS_MAPPING.get(source_class)
+            class_name = CLASS_MAPPING.get(source_class, 'otros')
             x = float(prediction['x'])
             y = float(prediction['y'])
             width = float(prediction['width'])
@@ -82,9 +82,8 @@ class RoboflowProvider:
                     round(y + height / 2, 1),
                 ],
             }
-            if class_name:
-                detection.update(CLASES_RECYBOT[class_name])
-            else:
+            detection.update(CLASES_RECYBOT[class_name])
+            if source_class not in CLASS_MAPPING:
                 detection['requiere_revision'] = True
             detections.append(detection)
         return detections

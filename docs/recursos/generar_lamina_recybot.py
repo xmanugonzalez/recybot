@@ -170,7 +170,7 @@ def crear_flujo() -> None:
     pasos = [
         ('1', 'CAPTURAR', 'La Pi 3 obtiene una fotografía nueva mediante la cámara.'),
         ('2', 'DETECTAR', 'La Pi 5 procesa la imagen con YOLOv8n y muestra los objetos encontrados.'),
-        ('3', 'CONFIRMAR', 'El usuario selecciona: plástico, vidrio, metal o papel/cartón.'),
+        ('3', 'CONFIRMAR', 'El usuario selecciona: plástico, papel/cartón, metal u otros.'),
         ('4', 'REGISTRAR', 'La imagen confirmada queda disponible para revisión y entrenamiento.'),
     ]
     colores = [AZUL, CIAN, VERDE, NARANJA]

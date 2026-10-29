@@ -13,10 +13,10 @@ from typing import Any
 
 
 CLASES_RECYBOT = {
-    'botella_plastico': {'categoria': 'Plástico', 'destino': 'plastico'},
-    'botella_vidrio': {'categoria': 'Vidrio', 'destino': 'vidrio'},
-    'lata': {'categoria': 'Metal', 'destino': 'metal'},
+    'plastico': {'categoria': 'Plástico', 'destino': 'plastico'},
     'papel_carton': {'categoria': 'Papel / Cartón', 'destino': 'papel_carton'},
+    'metal': {'categoria': 'Metal', 'destino': 'metal'},
+    'otros': {'categoria': 'Otros', 'destino': 'otros'},
 }
 GENERIC_BOX_CLASSES = {'bottle', 'wine glass', 'cup', 'bowl', 'book'}
 

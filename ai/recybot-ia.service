@@ -1,5 +1,5 @@
 [Unit]
-Description=Recybot YOLOv8n CPU inference on Pi 5
+Description=Recybot image classification service on Pi 5
 After=network.target
 
 [Service]
@@ -7,6 +7,8 @@ WorkingDirectory=%h/recybot-ia
 ExecStart=%h/recybot-ia/.venv/bin/python -u %h/recybot-ia/server.py
 Environment=OMP_NUM_THREADS=1
 Environment=OPENBLAS_NUM_THREADS=1
+Environment=RECYBOT_INFERENCE_BACKEND=openai
+Environment=OPENAI_MODEL=gpt-6-luna
 Environment=RECYBOT_MODEL_MODE=prueba
 Environment=RECYBOT_COLLECT_SAMPLES=true
 Restart=on-failure

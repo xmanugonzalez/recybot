@@ -20,13 +20,13 @@ class SyncRoboflowTest(unittest.TestCase):
             image.write_bytes(b'image')
             annotation = root / 'sample.xml'
             write_voc({
-                'clase_confirmada': 'botella_plastico',
+                'clase_confirmada': 'plastico',
                 'ancho': 640,
                 'alto': 480,
                 'caja_xyxy': [10, 20, 300, 400],
             }, image, annotation)
             parsed = ElementTree.parse(annotation)
-            self.assertEqual(parsed.findtext('object/name'), 'botella_plastico')
+            self.assertEqual(parsed.findtext('object/name'), 'plastico')
             self.assertEqual(parsed.findtext('object/bndbox/xmax'), '300')
 
     def test_merges_legacy_paper_and_cardboard_annotations(self):

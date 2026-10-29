@@ -31,15 +31,15 @@ class ActiveLearningStoreTest(unittest.TestCase):
             'prueba',
         )
 
-        result = self.store.confirm(sample_id, 'botella_vidrio')
+        result = self.store.confirm(sample_id, 'otros')
 
         self.assertTrue(result['guardada'])
         self.assertFalse(result['requiere_revisar_caja'])
         metadata = json.loads(
             (self.root / 'inbox' / 'metadata' / f'{sample_id}.json').read_text(encoding='utf-8')
         )
-        self.assertEqual(metadata['clase_confirmada'], 'botella_vidrio')
-        self.assertEqual(metadata['destino'], 'vidrio')
+        self.assertEqual(metadata['clase_confirmada'], 'otros')
+        self.assertEqual(metadata['destino'], 'otros')
         self.assertEqual(metadata['caja_xyxy'], [10, 20, 300, 420])
         self.assertEqual(
             (self.root / 'inbox' / 'images' / f'{sample_id}.jpg').read_bytes(),

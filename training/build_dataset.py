@@ -11,26 +11,31 @@ from pathlib import Path
 
 import yaml
 
-CLASSES = ['botella_plastico', 'botella_vidrio', 'lata', 'papel_carton']
+CLASSES = ['plastico', 'papel_carton', 'metal', 'otros']
 ALIASES = {
-    'plastic': 'botella_plastico',
-    'plastico': 'botella_plastico',
-    'plastic bottle': 'botella_plastico',
-    'botella plastico': 'botella_plastico',
-    'botella_plastico': 'botella_plastico',
-    'glass': 'botella_vidrio',
-    'vidrio': 'botella_vidrio',
-    'glass bottle': 'botella_vidrio',
-    'botella vidrio': 'botella_vidrio',
-    'botella_vidrio': 'botella_vidrio',
-    'metal': 'lata',
-    'can': 'lata',
-    'lata': 'lata',
+    'plastic': 'plastico',
+    'plastico': 'plastico',
+    'plastic bottle': 'plastico',
+    'botella plastico': 'plastico',
+    'botella_plastico': 'plastico',
     'paper': 'papel_carton',
     'papel': 'papel_carton',
     'cardboard': 'papel_carton',
     'carton': 'papel_carton',
     'papel carton': 'papel_carton',
+    'papel_carton': 'papel_carton',
+    'metal': 'metal',
+    'can': 'metal',
+    'lata': 'metal',
+    'glass': 'otros',
+    'vidrio': 'otros',
+    'glass bottle': 'otros',
+    'botella vidrio': 'otros',
+    'botella_vidrio': 'otros',
+    'organic': 'otros',
+    'organico': 'otros',
+    'food waste': 'otros',
+    'otros': 'otros',
 }
 IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp'}
 

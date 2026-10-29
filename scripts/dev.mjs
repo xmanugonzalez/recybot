@@ -19,6 +19,7 @@ const REQUIREMENTS = resolve(ROOT, 'ai/requirements-local.txt')
 const CAMERA_REQUIREMENTS = resolve(ROOT, 'ai/requirements-camera.txt')
 const REQUIREMENTS_MARKER = resolve(ROOT, '.venv/.recybot-requirements.sha256')
 const TOKEN_PATH = resolve(ROOT, 'ai/config/api-token')
+const OPENAI_KEY_PATH = resolve(ROOT, 'ai/config/openai-api-key')
 const ROBOFLOW_KEY_PATH = resolve(ROOT, 'ai/config/roboflow-api-key')
 const VITE_ENV_PATH = resolve(ROOT, '.env.recybot-dev.local')
 const children = new Map()
@@ -74,9 +75,9 @@ async function ensurePython() {
   }
 }
 
-async function readSecret(prompt) {
+async function readSecret(prompt, missingPath) {
   if (!process.stdin.isTTY || !process.stdin.setRawMode) {
-    throw new Error(`Falta ${ROBOFLOW_KEY_PATH}. Configura la Private API Key de Roboflow antes de iniciar.`)
+    throw new Error(`Falta ${missingPath}. Configura la clave antes de iniciar.`)
   }
   process.stdout.write(prompt)
   process.stdin.setRawMode(true)
@@ -122,8 +123,14 @@ async function ensureSecrets() {
     await writeFile(TOKEN_PATH, `${randomBytes(32).toString('hex')}\n`, { mode: 0o600 })
     console.log('[config] Token interno generado en ai/config/api-token.')
   }
+  if (!existsSync(OPENAI_KEY_PATH) && !process.env.OPENAI_API_KEY) {
+    const key = await readSecret('[config] API key de OpenAI: ', OPENAI_KEY_PATH)
+    if (!key) throw new Error('La clave de OpenAI no puede estar vacía.')
+    await writeFile(OPENAI_KEY_PATH, `${key}\n`, { mode: 0o600 })
+    console.log('[config] Clave de OpenAI guardada localmente; Git la ignora.')
+  }
   if (!existsSync(ROBOFLOW_KEY_PATH) && !process.env.ROBOFLOW_API_KEY) {
-    const key = await readSecret('[config] Private API Key de Roboflow: ')
+    const key = await readSecret('[config] Private API Key de Roboflow: ', ROBOFLOW_KEY_PATH)
     if (!key) throw new Error('La clave de Roboflow no puede estar vacía.')
     await writeFile(ROBOFLOW_KEY_PATH, `${key}\n`, { mode: 0o600 })
     console.log('[config] Clave guardada localmente; Git la ignora.')
@@ -261,7 +268,7 @@ async function main() {
 
   start('ia', VENV_PYTHON, ['ai/server.py'], {
     ...commonPython,
-    RECYBOT_INFERENCE_BACKEND: process.env.RECYBOT_INFERENCE_BACKEND || 'roboflow',
+    RECYBOT_INFERENCE_BACKEND: process.env.RECYBOT_INFERENCE_BACKEND || 'openai',
     RECYBOT_DEVICE_LABEL: process.env.RECYBOT_DEVICE_LABEL || 'PC local',
   })
   await waitFor('IA', 'http://127.0.0.1:8766/api/salud')

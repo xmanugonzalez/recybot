@@ -12,7 +12,13 @@ from roboflow import Roboflow
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AI_ROOT = PROJECT_ROOT / 'ai'
-LEGACY_CLASSES = {'papel': 'papel_carton', 'carton': 'papel_carton'}
+LEGACY_CLASSES = {
+    'botella_plastico': 'plastico',
+    'botella_vidrio': 'otros',
+    'lata': 'metal',
+    'papel': 'papel_carton',
+    'carton': 'papel_carton',
+}
 
 
 def normalized_class(metadata: dict) -> str:

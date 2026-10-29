@@ -35,9 +35,9 @@ class RoboflowProviderTest(unittest.TestCase):
 
     def test_maps_public_classes_to_recybot(self):
         self.assertEqual(CLASS_MAPPING, {
-            'plastic': 'botella_plastico',
-            'glass': 'botella_vidrio',
-            'metal': 'lata',
+            'plastic': 'plastico',
+            'glass': 'otros',
+            'metal': 'metal',
             'paper': 'papel_carton',
             'cardboard': 'papel_carton',
         })
@@ -77,7 +77,29 @@ class RoboflowProviderTest(unittest.TestCase):
         self.assertIsNone(request.get_header('Authorization'))
         self.assertEqual(request.get_header('Content-type'), 'application/x-www-form-urlencoded')
         self.assertEqual(request.data, base64.b64encode(b'imagen-jpeg'))
-        self.assertEqual(detections[0]['clase'], 'botella_plastico')
+        self.assertEqual(detections[0]['clase'], 'plastico')
+
+    def test_maps_unknown_waste_class_to_others_for_review(self):
+        payload = {
+            'predictions': [{
+                'class': 'organic',
+                'confidence': 0.79,
+                'x': 50,
+                'y': 60,
+                'width': 40,
+                'height': 20,
+            }],
+        }
+        with tempfile.TemporaryDirectory(dir=self.test_root) as directory:
+            provider = self.create_provider(directory)
+            with patch('roboflow_provider.urlopen', return_value=FakeResponse(
+                json.dumps(payload).encode(),
+            )):
+                detections = provider.predict(b'imagen-jpeg')
+
+        self.assertEqual(detections[0]['clase'], 'otros')
+        self.assertEqual(detections[0]['categoria'], 'Otros')
+        self.assertTrue(detections[0]['requiere_revision'])
 
     def test_does_not_retry_connection_errors(self):
         with tempfile.TemporaryDirectory(dir=self.test_root) as directory:
