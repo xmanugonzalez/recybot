@@ -27,6 +27,14 @@ let stopping = false
 let exitCode = 0
 let shutdownInputHandler
 
+const RASPBERRY_SERVICES = [
+  'recybot-pantalla.service',
+  'recybot-web.service',
+  'recybot-camera.service',
+  'recybot-ia.service',
+]
+const DEVELOPMENT_PORTS = [5173, 8080, 8765, 8766]
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: ROOT,
@@ -39,6 +47,28 @@ function run(command, args, options = {}) {
     throw new Error(detail)
   }
   return result.stdout?.trim() ?? ''
+}
+
+async function prepareRaspberryDevelopment() {
+  if (!IS_RASPBERRY_PI) return
+
+  console.log('[config] Deteniendo servicios instalados de Recybot…')
+  for (const service of RASPBERRY_SERVICES) {
+    spawnSync('systemctl', ['--user', 'stop', service], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: 'ignore',
+    })
+  }
+
+  console.log('[config] Liberando puertos de ejecuciones anteriores…')
+  for (const port of DEVELOPMENT_PORTS) {
+    spawnSync('fuser', ['-k', '-TERM', `${port}/tcp`], { stdio: 'ignore' })
+  }
+  await new Promise((resolveWait) => setTimeout(resolveWait, 1_000))
+  for (const port of DEVELOPMENT_PORTS) {
+    spawnSync('fuser', ['-k', '-KILL', `${port}/tcp`], { stdio: 'ignore' })
+  }
 }
 
 function findPython() {
@@ -240,13 +270,26 @@ async function stopAll() {
   stopping = true
   restoreInput()
   console.log('\n[recybot] Deteniendo todos los servicios…')
-  for (const child of children.values()) stopProcessTree(child)
+  const runningChildren = [...children.values()]
+  for (const child of runningChildren) stopProcessTree(child)
+  await new Promise((resolveWait) => setTimeout(resolveWait, 1_000))
+  if (!IS_WINDOWS) {
+    for (const child of runningChildren) {
+      if (!child.pid) continue
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch {
+        // El grupo ya terminó correctamente.
+      }
+    }
+  }
   children.clear()
   console.log('[recybot] Todo quedó detenido.')
   process.exit(exitCode)
 }
 
 async function main() {
+  await prepareRaspberryDevelopment()
   await ensurePython()
   await ensureSecrets()
   await writeViteEnvironment()
@@ -261,7 +304,8 @@ async function main() {
       ...commonPython,
       RECYBOT_CAMERA_BACKEND: process.env.RECYBOT_CAMERA_BACKEND || (IS_RASPBERRY_PI ? 'picamera2' : 'opencv'),
       RECYBOT_CAMERA_INDEX: process.env.RECYBOT_CAMERA_INDEX || '0',
-      RECYBOT_CAMERA_FLIP_HORIZONTAL: process.env.RECYBOT_CAMERA_FLIP_HORIZONTAL || 'false',
+      RECYBOT_CAMERA_FLIP_HORIZONTAL:
+        process.env.RECYBOT_CAMERA_FLIP_HORIZONTAL || (IS_RASPBERRY_PI ? 'true' : 'false'),
     })
     await waitFor('Cámara', 'http://127.0.0.1:8765/api/camara/status')
   }
