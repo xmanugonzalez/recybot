@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
+  import { onDestroy, tick } from 'svelte'
   import IconCamera from '@tabler/icons-svelte-runes/icons/camera'
   import IconCheck from '@tabler/icons-svelte-runes/icons/check'
   import IconPencil from '@tabler/icons-svelte-runes/icons/pencil'
@@ -13,11 +13,11 @@
   import botella from './assets/botella.PNG'
   import papelCarton from './assets/pepel.png'
   import metal from './assets/metal.png'
-  import vidrio from './assets/vidrio.png'
+  import otros from './assets/otros.png'
 
   type Pantalla = 'bienvenida' | 'deteccion' | 'identificada' | 'categorias' | 'exito'
-  type CategoriaResiduo = 'Plástico' | 'Vidrio' | 'Metal' | 'Papel / Cartón'
-  type ClaseResiduo = 'botella_plastico' | 'botella_vidrio' | 'lata' | 'papel_carton'
+  type CategoriaResiduo = 'Plástico' | 'Papel / Cartón' | 'Metal' | 'Otros'
+  type ClaseResiduo = 'plastico' | 'papel_carton' | 'metal' | 'otros'
   type EstadoCamara = 'conectando' | 'activa' | 'error'
   type FuenteCamara = 'dispositivo' | 'servidor'
   type Deteccion = { clase: string; confianza: number; xyxy: number[]; categoria?: CategoriaResiduo }
@@ -34,10 +34,10 @@
     import.meta.env.VITE_CAMERA_SOURCE === 'server' ? 'servidor' : 'dispositivo'
 
   const categorias: { nombre: CategoriaResiduo; clase: ClaseResiduo; imagen: string; alt: string }[] = [
-    { nombre: 'Plástico', clase: 'botella_plastico', imagen: botella, alt: 'Botella de plástico' },
-    { nombre: 'Vidrio', clase: 'botella_vidrio', imagen: vidrio, alt: 'Botella de vidrio' },
-    { nombre: 'Metal', clase: 'lata', imagen: metal, alt: 'Lata de metal' },
+    { nombre: 'Plástico', clase: 'plastico', imagen: botella, alt: 'Botella de plástico' },
     { nombre: 'Papel / Cartón', clase: 'papel_carton', imagen: papelCarton, alt: 'Papel y cartón' },
+    { nombre: 'Metal', clase: 'metal', imagen: metal, alt: 'Lata de metal' },
+    { nombre: 'Otros', clase: 'otros', imagen: otros, alt: 'Bolsa, vaso y taza rota como ejemplos de otros residuos' },
   ]
 
   let pantallaActual = $state<Pantalla>('bienvenida')
@@ -110,6 +110,8 @@
           audio: false,
           video: { facingMode: { ideal: 'environment' } },
         })
+        await tick()
+        await prepararVideoDispositivo()
       } catch {
         capturaManual = true
         errorCamara = 'No se pudo abrir el video directo. Tocá para usar la cámara del dispositivo.'
@@ -492,7 +494,6 @@
                 muted
                 playsinline
                 aria-label="Vista en directo de la cámara de este dispositivo"
-                onloadedmetadata={prepararVideoDispositivo}
               ></video>
             {:else}
               <div class="estado-camara-celular">
