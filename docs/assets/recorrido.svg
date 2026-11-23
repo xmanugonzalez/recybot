@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="244" viewBox="0 0 720 244" role="img" aria-labelledby="t d">
+  <title id="t">De la fotografía a la confirmación</title>
+  <desc id="d">La foto pasa al análisis. Si hay una categoría, la persona puede aceptarla o cambiarla. Si falta, elige el material. Ambos caminos terminan en la confirmación.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="m1 1 7 4-7 4" fill="none" stroke="#446895" stroke-width="1.5"/></marker></defs>
+  <rect width="720" height="244" rx="18" fill="#eff6ff"/>
+  <g fill="none" stroke="#446895" stroke-width="2" marker-end="url(#arrow)"><path d="M124 125h37"/><path d="M279 125h17q8 0 8-8V80q0-8 8-8h16"/><path d="M279 125h17q8 0 8 8v37q0 8 8 8h16"/><path d="M492 72h18q8 0 8 8v37q0 8 8 8h20"/><path d="M492 178h18q8 0 8-8v-37q0-8 8-8h20"/></g>
+  <g fill="#fff" stroke="#acc3e2" stroke-width="1.3"><rect x="19" y="87" width="104" height="76" rx="12"/><rect x="164" y="87" width="115" height="76" rx="12"/><rect x="333" y="40" width="159" height="64" rx="12"/><rect x="333" y="146" width="159" height="64" rx="12"/></g>
+  <rect x="551" y="87" width="150" height="76" rx="12" fill="#2563eb"/>
+  <g fill="none" stroke="#2563eb" stroke-width="2.1" stroke-linejoin="round"><path d="M59 106h6l2-3h7l2 3h6v15H59z"/><circle cx="70.5" cy="113" r="4"/><path d="M209 110v-6h7m11 0h7v6m0 6v6h-7m-11 0h-7v-6m5-3h15"/></g>
+  <g font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#111827" font-size="19" font-weight="600"><text x="71" y="148">Foto</text><text x="222" y="148">Análisis</text><text x="412" y="68">Aceptar</text><text x="412" y="175">Elegir</text><text x="626" y="135" fill="white">Confirmar</text></g>
+  <g font-family="Segoe UI,Arial,sans-serif" font-size="15" text-anchor="middle" fill="#475569"><text x="412" y="89">la propuesta</text><text x="412" y="196">otro material</text></g>
+</svg>
