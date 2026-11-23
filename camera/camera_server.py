@@ -6,6 +6,8 @@ import io
 import json
 import logging
 import os
+import shutil
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +22,10 @@ CAMERA_FLIP_HORIZONTAL = os.environ.get(
     'RECYBOT_CAMERA_FLIP_HORIZONTAL',
     'false',
 ).lower() == 'true'
+CAMERA_LIBRARY_PATH = os.path.expanduser(os.environ.get(
+    'RECYBOT_CAMERA_LIBRARY_PATH',
+    '~/.local/opt/recybot-runtime/usr/lib/arm-linux-gnueabihf',
+))
 
 
 def corregir_orientacion(imagen, cv2):
@@ -80,6 +86,117 @@ class FuentePicamera2:
             self.camara.close()
 
 
+class FuenteRpicam:
+    nombre = 'rpicam'
+
+    def __init__(self, salida, comando=None):
+        self.salida = salida
+        self.comando = comando or shutil.which('rpicam-vid') or shutil.which('libcamera-vid')
+        self.proceso = None
+        self.hilo = None
+        self.detener_evento = threading.Event()
+        self.error = 'La cámara se está iniciando'
+        self.reinicios = 0
+
+    def iniciar(self):
+        if self.comando is None:
+            raise RuntimeError(
+                'No se encontró rpicam-vid ni libcamera-vid. '
+                'Instala rpicam-apps (o libcamera-apps en Raspberry Pi OS antiguo).'
+            )
+        self.hilo = threading.Thread(target=self._supervisar, daemon=True)
+        self.hilo.start()
+
+    def _argumentos(self):
+        argumentos = [
+            self.comando,
+            '--codec', 'mjpeg',
+            '--width', str(CAMERA_WIDTH),
+            '--height', str(CAMERA_HEIGHT),
+            '--framerate', str(CAMERA_FPS),
+            '--timeout', '0',
+            '--nopreview',
+            '--output', '-',
+        ]
+        if CAMERA_FLIP_HORIZONTAL:
+            argumentos.append('--hflip')
+        return argumentos
+
+    def _supervisar(self):
+        while not self.detener_evento.is_set():
+            self.error = 'La cámara se está iniciando'
+            try:
+                entorno = os.environ.copy()
+                if os.path.isdir(CAMERA_LIBRARY_PATH):
+                    rutas = [CAMERA_LIBRARY_PATH]
+                    if entorno.get('LD_LIBRARY_PATH'):
+                        rutas.append(entorno['LD_LIBRARY_PATH'])
+                    entorno['LD_LIBRARY_PATH'] = os.pathsep.join(rutas)
+                self.proceso = subprocess.Popen(
+                    self._argumentos(),
+                    stdout=subprocess.PIPE,
+                    env=entorno,
+                    bufsize=0,
+                )
+                self._leer_mjpeg(self.proceso)
+                if self.proceso.poll() is None:
+                    self.proceso.terminate()
+                try:
+                    codigo = self.proceso.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.proceso.kill()
+                    codigo = self.proceso.wait(timeout=2)
+                if not self.detener_evento.is_set():
+                    self.reinicios += 1
+                    self.error = f'La captura se detuvo (código {codigo}); reintentando'
+                    logging.error('%s. Reinicio número %s.', self.error, self.reinicios)
+            except OSError as error:
+                self.reinicios += 1
+                self.error = f'No se pudo iniciar la captura: {error}'
+                logging.exception(self.error)
+            finally:
+                self.proceso = None
+
+            if self.detener_evento.wait(min(5, max(1, self.reinicios))):
+                break
+
+    def _leer_mjpeg(self, proceso):
+        pendiente = bytearray()
+        while not self.detener_evento.is_set():
+            fragmento = proceso.stdout.read(64 * 1024)
+            if not fragmento:
+                break
+            pendiente.extend(fragmento)
+            while True:
+                inicio = pendiente.find(b'\xff\xd8')
+                if inicio < 0:
+                    ultimo_byte = pendiente[-1:] if pendiente.endswith(b'\xff') else b''
+                    pendiente.clear()
+                    pendiente.extend(ultimo_byte)
+                    break
+                fin = pendiente.find(b'\xff\xd9', inicio + 2)
+                if fin < 0:
+                    if inicio:
+                        del pendiente[:inicio]
+                    break
+                fin += 2
+                self.salida.write(pendiente[inicio:fin])
+                del pendiente[:fin]
+                self.error = ''
+
+    def detener(self):
+        self.detener_evento.set()
+        proceso = self.proceso
+        if proceso is not None and proceso.poll() is None:
+            proceso.terminate()
+            try:
+                proceso.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proceso.kill()
+        if self.hilo is not None:
+            self.hilo.join(timeout=3)
+
+
 class FuenteOpenCV:
     nombre = 'opencv'
 
@@ -136,11 +253,13 @@ class FuenteOpenCV:
 
 
 def crear_fuente(nombre, salida):
+    if nombre in ('auto', 'rpicam'):
+        return FuenteRpicam(salida)
     if nombre == 'opencv':
         return FuenteOpenCV(salida)
     if nombre == 'picamera2':
         return FuentePicamera2(salida)
-    raise RuntimeError('RECYBOT_CAMERA_BACKEND debe ser opencv o picamera2')
+    raise RuntimeError('RECYBOT_CAMERA_BACKEND debe ser auto, rpicam, opencv o picamera2')
 
 
 salida = SalidaDeVideo()
@@ -180,6 +299,7 @@ class ManejadorCamara(BaseHTTPRequestHandler):
                 'ancho': CAMERA_WIDTH,
                 'alto': CAMERA_HEIGHT,
                 'volteo_horizontal': CAMERA_FLIP_HORIZONTAL,
+                'reinicios': getattr(fuente, 'reinicios', 0),
                 'error': error or None,
             })
 

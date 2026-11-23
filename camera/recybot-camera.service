@@ -4,7 +4,7 @@ After=graphical.target
 
 [Service]
 Type=simple
-Environment=RECYBOT_CAMERA_BACKEND=picamera2
+Environment=RECYBOT_CAMERA_BACKEND=auto
 Environment=RECYBOT_CAMERA_FLIP_HORIZONTAL=true
 ExecStart=/usr/bin/python3 %h/recybot-camera/camera_server.py
 Restart=on-failure

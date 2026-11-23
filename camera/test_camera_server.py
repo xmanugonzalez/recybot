@@ -9,6 +9,7 @@ import camera_server
 from camera_server import (
     FuenteOpenCV,
     FuentePicamera2,
+    FuenteRpicam,
     SalidaDeVideo,
     corregir_orientacion,
     crear_fuente,
@@ -20,10 +21,29 @@ class CameraServerTest(unittest.TestCase):
         output = SalidaDeVideo()
         self.assertIsInstance(crear_fuente('opencv', output), FuenteOpenCV)
         self.assertIsInstance(crear_fuente('picamera2', output), FuentePicamera2)
+        self.assertIsInstance(crear_fuente('auto', output), FuenteRpicam)
 
     def test_rejects_unknown_backend(self):
-        with self.assertRaisesRegex(RuntimeError, 'opencv o picamera2'):
+        with self.assertRaisesRegex(RuntimeError, 'auto, rpicam, opencv o picamera2'):
             crear_fuente('desconocido', SalidaDeVideo())
+
+    def test_rpicam_extracts_complete_jpegs_from_fragmented_output(self):
+        output = SalidaDeVideo()
+        source = FuenteRpicam(output, comando='rpicam-vid')
+        process = MagicMock()
+        process.stdout.read.side_effect = [
+            b'ruido\xff',
+            b'\xd8primera',
+            b'\xff\xd9\xff\xd8segunda\xff',
+            b'\xd9',
+            b'',
+        ]
+
+        source._leer_mjpeg(process)
+
+        self.assertEqual(output.secuencia, 2)
+        self.assertEqual(output.imagen, b'\xff\xd8segunda\xff\xd9')
+        self.assertEqual(source.error, '')
 
     def test_waits_for_exactly_one_new_frame(self):
         output = SalidaDeVideo()
